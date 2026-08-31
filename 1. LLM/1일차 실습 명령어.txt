@@ -1,0 +1,7 @@
+1일차 실습 명령어
+1. AVD 접속
+2. c:\work\share_folder_addresses.txt에 나온 공유 폴더 접속해서 llm_hands_on을 C드라이브에 복사
+3. anaconda prompt 실행
+	$ cd c:\llm_hands_on
+	$ conda activate env_aias_test
+	$ jupyter lab
