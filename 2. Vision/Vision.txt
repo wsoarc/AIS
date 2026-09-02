@@ -1,0 +1,271 @@
+1. The Evolution of Computer Vision
+컴퓨터가 보고 이해하고 분석하고 해석한다
+
+초기에는 handcrated features : 필터 위주로 선이나 특징을 찾음
+중기에는 feature engineering : feture description이나 feature matching
+말기에는 machine learning 기반 : SVM, Adaboost 등 
+2011년부터 Deep learning revolution : handcrafted feature 대신 네트워크를 통한 end-to-end feature 사용
+2021년부터는 transformer 도입, vision-language 통합, 생성형 vision 등으로 발전 중
+
+vision model 학습 방식
+- Supervised learning : 지도 학습, 인풋을 주고 정답도 알려줌, classification이나 regression 문제에서 많이 사용
+- Semi-supervised learning : 일부만 레이블있고 대다수 레이블 없는 데이터로 학습, pseudo-labeling 등
+- Self-superviesed learning : 레이블이 안주어지고 인풋만 있음
+    - pretext task : pre-training, 입력에서 스스로 질문을 만들어내서 맞추는식으로 학습, image reperesentation을 배움
+    - downstream task : transfer hearning, task에 맞춰서 잘 수행할 수 있도록 학습
+
+2. Background Knowledge
+camera image sensor : lens, microlens, color(bayer) fileter, photodiode
+RGB image to Tensor
+Vector and Matrix : scalar -> vector -> matrix
+Derivative, Partial derivative
+Gradient : Steepest increase, nabla로 표현, 각각 변수에 대한 편미분 값을 원소로하는 벡터로 표현
+Probability and Statistics
+- Random variable : 어떤 outcome을 실수로 맵핑시키는 함수
+- Sampling : 집합에서 꺼내옴, x ~ X
+- PDF(Probability Density Function) : 연속적 확률, 확률을 얘기할 때 반드시 범위가 필요
+- PMF(Probability Mass Function): 이산적 확률, PMF 성질 기억해두기 ★
+- likelihood : 조건부확률과 헷갈리지 않기, 확률이 아닌 가능성의 개념
+- Bayes rule : MLE를 통해 likelihood 값을 argmax하는 세타를 찾아서 쓰면 posterior가 높아짐
+- Entropy : 불확실성, 나올 확률에 따라 bit 수 할당 조절하는 통신에서 나온 개념 (The minimum average number of bits)
+- Cross Entropy : average coding cost of using q, p(x)는 정답 확률 q(x)는 모델이 내뱉은 확률
+- KL Divergence : cross entropy에서 entropy를 뺀다. 정답을 맞추면 0이고 틀리면 양수값 나옴
+Training : Epoch, Batch, Interation(or Step)
+
+3. DNN
+Perceptron : simplest form of an artificial neuron, 부호를 통한 binary classification 용도, 사람의 신경을 모델링, x/y관계가 linear기 때문에 XOR 문제를 풀 수 없음
+MLP(Multi-layered Perceptron)
+- Feedforward neural network with one or more hidden layers, 차원을 늘려서 XOR같은 비선형 문제를 해결
+- 비선형 활성화 함수를 히든레이어로 사용
+- backpropagation을 통한 학습
+Deep Neural Network
+- MLP에서 히든 레이어 갯수를 늘릴 수 있는만큼 늘림
+- overfitting, underfitting 문제 존재
+- 역전파 과정에서의 vaniishing gradients 문제 발생 -> ReLU, BatchNorm, Residual로 해결
+Activation Function
+- Sigmoid : Logistic regression, Binary classification 문제에서 사용, 모든 구간에서 미분 가능, 0 근처에서 기울기 최대
+- SoftMax : Multi-class classification에서 사용, 마지막 출력 레이어에서 사용
+Backpropagation
+- 결과를 정답과 비교한 loss를 모든 weight마다 편미분하고 경사하강법을 통해 weight들을 업데이트하는 것을 반복하여 loss 최소화
+- Chain rule을 적용하여 효율적인 weight 업데이트 가능
+- 메모리에 weight, activation 함수의 미분값, activation 값, gradient history가 올라가있어야 함
+- 미분값이 0이되서 업데이트 되지 않는 weight가 없으려면 activation 함수의 미분값이 0이 나오지 않는 것이 중요-> logit의 분포가 0 근처에 있지 않도록 정규화 등 필요
+Loss : task에 맞는 loss 적용하는 것이 중요 (MSE, Cross Entropy 등등)
+Regression vs Classification : 적용되는 activation 함수 와 loss 등에 차이 있음
+
+4. CNN
+DNN은 이미지에서 visual semantic을 보는게 아니고 statistical correlation을 배우는 것 뿐, 사람처럼 이해하지 않음 -> CNN 대두
+Convolution
+- 커널을 mirroring -> moving -> multiplication -> addtion
+- 신호와 커널이 겹치는 부분에 대한 연산이 중요
+- filter의 window의 값들을 학습을 통해 찾아낸다
+- filter의 크기와 filter kernel의 갯수가 하이퍼 파라미터 -> 아웃풋 feature map의 차원 결정 가능
+- 이미지를 픽셀단위로 학습하던 DNN과 달리 영역을 바라보고 학습 (weight 개수도 줄어들어 학습 자체도 더 효율적)
+Convolution technique
+- Padding : 인풋 이미지 외곽을 패딩해서 아웃풋의 크기를 인풋과 똑같게 유지
+- Stride : 커널이 이동하는 스텝을 조절, 크게 이동할 수록 아웃풋 크기가 줄어듬
+- Pooling : 영역을 합쳐서 아웃풋 크기 감소 (max pooling, avg pooling)
+CNN architecture
+- Convolution + ReLU -> Pooling 의 반복을 통해 spatial compression(한 픽셀이 더 많은 채널을 가지고 더 많은 정보를 표현)
+- 최종 feature map을 flatten하고 fully connected layer를 통해 학습
+- softmax output layer를 통해 classification
+Receptive field
+- 최종 feature map의 한 pixel이 원본 이미지 상에서 표현하는 영역
+- Receptive field가 같아도 작은 커널을 사용하는게 파라미터가 더 적어서 효율적으로 학습
+1x1 convolution
+- 채널 간의 의미를 섞으면서 채널 수를 바꾸고 싶을 때 사용 (C에서 커널 개수(K)로 변경)
+- row-wise weighted sum과 동일한 효과
+- fully connected layer를 대체
+Group convolution
+- 채널별로 convolution을 묶어서 진행
+- 연산량이 감소하지만 채널간의 상호작용도 감소
+Depthwise (seperable) convolution
+- 극단적인 연산량 감소를 위해 각 채널별로 나눠서 filter 적용 (1채널로 group convolution) -> 채널간 상호작용이 아예 없음
+- 상호작용을 위해 나눠졌던 채널을 concat하고 pointwise convolution(1x1 convolution) -> 채널간 상호작용 고려됨
+- MobileNet 모델의 방법론
+Transposed convolution
+- feature map의 크기를 키우는 convolution
+- upsampling 파라미터를 학습해서 배움
+Deformable Convolutional Networks
+- CNN의 한계 : 고정된 convolutional 영역에서만 학습을 해야함
+- convolution 필터의 위치를 shift 시킴, shift를 얼마나 해야하는지를 학습 -> convolution의 위치를 학습
+- 3x3=9개의 포지션에 대해 각각 x,y변화량을 학습하는 offset convolution layer를 도입
+- 최종 feature map의 pixel에 대한 Receptive field가 원본 이미지에서 고정된 그리드 형태가 아니게 되고 의미론적으로 이해가 되는 형태로 변함
+
+5. Evolution of CNN
+VGGNet
+ResNet
+- layer를 더 깊게 쌓으면 이론적으로는 최소한 기존 네트워크와 같은 성능을 내야 하는데, 실제로는 학습 자체가 어려워져 성능이 오히려 나빠짐
+- 새로운 layer를 추가하면 적어도 새로운 layer가 indentity 역할을 하면서 최소한 같은 성능을 내야하는데 그러지 못한다는 것
+- overfitting이나 vanishing gradient 때문이 아닌 깊은 네트워크의 최적화가 어려워지는 근본적인 문제 -> Degradation Problem
+- Degradation Problem을 residual(skip) connection으로 해결한 논문
+- Skip connection
+  - 입력값을 identity mapping으로 그대로 전달하는 경로를 하나 만들어 주는 것
+  - 특정 layer의 출력값을 입력과 그대로 나오도록 하는것은 어려움 <- weight 초기값을 역전파에 유리하게 0으로 초기화 하는데 대각선 성분만 1로 만들게 학습하기 어려움
+  - layer의 출력값을 입력값에 더해서 활성화 함수를 통과시게 하면 layer 출력값은 입력값에서 얼마를 변화시키면 되는지만 학습 -> 잔차 학습
+  - layer 출력값은 아주 작은 잔차 값이 되기 때문에 0 근처에 분포 -> 역전파에 유리
+  - layer가 indentity mapping 역할을 할 수 있도록 해줌
+- skip connection을 활용layer를 깊게 쌓아도 학습이 원활하게 진행될 수 있게 한 구조
+
+6. Transformer
+vision 쪽에서는 encoder only로 많이 사용
+Encoder
+- Input embedding : input을 embedding으로 변환
+- Q, K, V : embedding을 Q, K, V로 변환, 학습 대상 아니고 Wq, Wk, Wv가 학습 대상
+- Scale Dot-Product Attention
+  - Q와 K의 내적을 통해 attention weight 계산
+  - softmax를 통해 attention weight를 행단위의 확률분포(PMF)로 변환
+  - V와 weighted sum해서 새로운 value 벡터가 계산됨
+Attention
+- Weighted d sum of the value vectors
+- every token can attend to every other token (global receptive field)
+
+7. Vision Transformer (ViT)
+CNN의 한계 : 성능 개선이 한계에 막힘 -> 다른 구조 도입 
+Self Attention 구조로 convolution을 대체 시도
+Architecture
+- 이미지를 언어처럼 처리할 수 있도록 처리, 이미지를 patch 단위로 나눠서 단어처럼 사용
+- patch를 flatten하고 linear projection해서 vector의 차원 변경
+- 0번 토큰으로 [CLS] 토큰을 넣고 토큰들에 positional embedding 더해줌
+- Transformer Encoder에서 나오는 출력 중 0번 토큰인 [CLS]만 MLP output layer에 입력으로 넣고 classification
+동작 흐름
+- PxP 크기의 patch로 이미지를 나눔, patch 하나에는 PxPxC 개의 픽셀이 있음
+- embedding matrix와 linear projection해서 NxD 행렬로 변환
+- [CLS] 토큰을 맨앞에 더해서 N+1개로 바꾸고 positional encoding
+- 각각 Dh의 열을 가지는 Query, Key, Value 행렬로 쪼개서 만듦
+- multihead self-attention 수행
+- [CLS] 토큰만 MLP에 통과시켜서 classification, [CLS] 토큰이 나머지 토큰들에 대한 정보를 attention을 통해 이미 모두 가지고 있음
+장단점 : 이미지에서 global하게 패턴을 배울 수 있다, 간단한 블록으로 구성 가능, 라지 데이터에서 성능이 좋음, 작은 데이터에서 성능이 안좋음, 연산량이 많다
+
+
+8. ViT Variants
+DeiT
+- 작은 데이터셋에서도 잘 동작하는 ViT의 variant
+- Distillation을 통해 작은 데이터셋에서도 CNN 계열을 넘어섬
+  - Student 모델에서는 ViT 구조에서 마지막 토큰으로 distillation 토큰만 추가
+  - [CLS] 토큰은 원래대로 classification loss 계산에 사용하고 distillation 토큰은 Teacher 모델과의 distillation loss를 계산하는데 사용
+  - Teacher 모델로는 적은 데이터에서도 성능이 좋은 CNN 계열의 모델을 사용
+- Soft distillation : 두 loss를 더하는데 람다로 비율을 조절, cross entropy와 kl divergence를 섞어서 사용, 선생님의 확률값을 따라서 배우려는 의도
+- Hard distillation : 두 loss를 동일한 비율로 더함, cross entropy만 사용, 선생님의 정답 classification을 배우려는 의도, 성능이 더 좋았음
+Swin Transformer
+- ViT보다 attention 계산량을 줄임
+- feature 피라미드 도입으로 classification외에 detection과 segmentation task도 수행 가능
+- Shifted window mechanism
+  - 여러 patch가 뭉쳐있는 영역이 window
+  - global하게 attention 하지않고 window 내부에서만 attention 수행 -> W-MAS
+  - 그리고 window 경계면에서도 attention 수행 -> SW-MSA
+- W-MSA 인코더의 결과를 SW-MSA 인코더가 받아서 다시 처리하는 Transformer 블락 구조
+- masked MSA로 SW-MSA에서 경계면의 짜투리 patch들을 처리
+CLIP
+- 이미지와 텍스트를 연결
+- 이미지 레이블 작업의 비용이 상당히 많이 드는데 레이블링을 안 할 수 있는 방법이 없을까?
+- 모델에 zero shot 능력을 탑재
+- 자연어에서 직접 visual concept을 배우자
+- 4억장 정도의 이미지 텍스트 데이터셋을 통해 zero shot 달성
+- Contrastive learning : 동질적인 것은 같은 방향, 이질적인 것은 다른 방향으로 학습
+  - 텍스트는 텍스트 인코더, 이미지는 이미지 인코더를 통과시켜서 같은 차원의 벡터로 변환
+  - 같은 인덱스의 텍스트 토큰과 이미지 토큰의 방향이 같아지도록, 다른 인덱스와는 멀어지도록 학습
+  - 각각의 행,열 별로 contrastive loss 적용 -> 행렬의 대각성분이 1이 되도록 학습
+- zero-shot linear classifier
+  - prompt engineering을 거친 텍스트를 텍스트 인코더에 넣어서 이미지 인코더와 유사도 계산
+  - 학습에 사용된 텍스트가 자연어였기 때문
+DINO
+- self-distillation with no labels
+- self-supervised vision transformer, unsupervised object segmentation 수행
+- Student-Teacher framework
+  - student와 teacher 모델은 완전 동일해야함
+  - student에는 global view와 local view를 모두 넣고 teacher에는 global view만 넣음
+  - EMA (Exponential Moving Average) : student와 teacher의 weight를 ema해서 teacher의 weight를 업데이트함, student의 결과를 teacher에 조금씩 흘린다
+  - Centering : teacher 모델의 아웃풋을 정규화같은 느낌으로 처리
+  - student에서는 temperature가 높게 teacher에는 temperature가 낮은 softmax 적용
+  - student와 teacher의 아웃풋을 cross entropy loss로 계산
+  - DINO의 label? : teacher가 찾아낸 65536개의 semantic cluster
+  - stop gradient : teacher는 역전파를 하지 않고 student로부터 ema로만 weight 업데이트
+
+9. Object Detection
+이미지 상에서 무엇이 어디에 있는지 찾기, Class + Bounding Box
+Scale change, Occlusion, Pose change, Background complexity, Light condition 등이 object detection을 어렵게 만듦
+Detection Metric
+- Intersection over Union (IoU) : 정답과 찾아낸 영역이 얼마나 겹치는지에 대한 비율 (교집합 / 합집합)
+- Confusion matrix : confidence score < theshold -> drop
+  - True Positive : 있는걸 있다고 함
+  - False Positive : 없는걸 있다고 함
+  - False Negative : 있는데 없다고 함
+  - True Negative : 없는걸 없다고 함 (detection에선 무의미)
+  - Recall : TP / (TP + FN), 정답 중에 맞춘 비율
+  - Precision : TP / (TP + FP), 답안지 중에 정답 비율
+  - F1 score : (2 x Precision x Recall) / (Precision + Recall), Precision과 Recall이 둘 다 높기 쉽지 않은걸 노리는 점수
+- Average Precision : precision-recall curve 그래프의 아래 부분의 면적 (Area Under Curve, AUC), 하나의 클래스에 대해서만 계산 가능
+- Mean Average Precision : 각 클래스에 대해 average precision을 구하고 평균낸 점수, 가장 많이 사용됨
+One stage vs Two stage detectors : 모델의 아웃풋을 regression box와 classification box에 바로 넣는지 여부에 따라 갈림, two stage에서는 중간에 object proposal을 거침
+R-CNN
+- 초창기 two stage 방식
+- 이미지 상에서 Selective search를 먼저 돌리고 CNN 태움
+Fast R-CNN
+- R-CNN의 연산 시간 개선
+- CNN을 먼저 돌려서 차원을 줄이고 selective search 수행
+- 전체 연산 시간은 크게 줄였지만 selective search만은 아직도 CPU에서 동작해서 성능 한계있음
+Faster R-CNN
+- selective search까지 GPU에서 동작하도록 변경 -> RPN -> E2E training 가능해짐
+CenterNet
+- one stage 방식
+- 마지막 3개의 레이어가 object heatmap, local offset, object size를 구하도록 학습
+DETR
+- transformer 계열의 detector
+- 이미지를 패치로 나누는 대신 CNN에 먼저 넣고 차원을 줄여서 encoder 태움
+- 4개의 learnable object query와 인코더 결과를 디코더에 태움 (찾아낼 object 개수를 미리 지정해야함)
+- 각각의 아웃풋을 FFN을 태워서 4개의 detection 결과 생성
+- loss에 IoU 대신 GIoU 사용 (일반적인 IoU는 0일때 두 bbox가 얼마나 가까운지 구분 불가) 
+
+10. Tracking
+occlusion, disappear and reappear, similar object, fast motion, scale variation, camera motion, noise and illumination change, shape shifting, real-time constraints 등의 어려움 존재
+Tracking metrix
+- MOTA : FN, FP, IDswitching 등을 고려
+- IDF1, HOTA ...
+Tracking methodology
+- Tracking by Detection : 연속된 두 프레임에 대해 detection을 수행하고 association을 수행, detection의 성능에 많이 좌우됨
+- Tracking by Regression : regression network를 통해 이전 프레임을 활용해 다음 프레임에서의 box를 예측
+ByteTrack
+- Tracking by Detection
+- occlusion, motion-blur 등으로 인해 낮은 detection confidence score가 나오는 경우 트래킹 성능의 하락하는 것을 해결
+- Algorithm
+  - 한 프레임에 대해 detection 수행하고 이미지 내부 box마다 threshold를 기준으로 D_high, D_low 집합으로 배정
+  - First association : D_high와 predicted track와의 관계에서 association
+  - Second association : D_low와 predicted track과의 관계에서 association
+  - D_low에서 잠시 점수가 낮아진 애들을 살려둔 survived tracks이 성능 향상의 주요한 역할
+TrackFormer
+- DETR 기반의 tracker
+- no_object가 아닌 object query를 다음 프레임으로 계속 들고가서 유지 
+
+11. Segmentation
+Pixel-wise multi-class classification
+pixel 단위로 보면 one-hot encoding이 됨 <- 이거 맞추도록 학습
+Segmentation metric : detection metric과 유사, 사각형이냐 자유도형이냐 차이
+- IoU, mIoU, FWIoU 등
+Segmentation Category
+- Semantic segmentation : 클래스 단위로 segmentation
+- Instance segmentation : 인스턴스 단위로 segmentation, background에는 관심 없음
+- Panoptic segmentation : semantic + instance segmentation, instance segmentation에서 background까지 분류, Things&Stuff
+FCN
+- fully convolutional network for semantic segmentation 상징성
+- Skip fusion : 
+Mask R-CNN
+- Object detection + Semantic Segmentation -> Instance segmentation 수행
+- Faster R-CNN -> RPN -> ROI Align(서로다른 크기의 bbox를 같은 크기로 통일) -> Mask head
+- ROI Align
+  - ROI Pooling은 boundary misalignment 때문에 mask의 품질이 안좋음
+  - ROI Align은 boundary misalignment를 픽셀 단위로 조정해서 다시 맞추지 않고 안맞은 상태 그대로 격자로 나눔
+  - 나눠진 셀마다 걸쳐있는 셀들의 비율만큼 weight sum을 해서 값을 결정 하고 max pooling
+- Mask Head
+  - bounding box 내부에서만 segmentation -> multi-class classification 문제가 binary classification 문제로 바뀜 (softmax -> sigmoid)
+U-Net
+- Contracting path : image size 작아지고 channel 커짐, Context extraction
+- Expanding path : image size 컺지고 channel 작아짐, Precise localization
+- Skip connection : contracting path에서 같은 단계의 feature map을 crop해서 expanding path 단계에 concat함
+SegFormer
+- Transformer를 segmentation에 적용
+- 인코더에 Efficient self-attention, Mix-FFN, Overlap Patch Merging 등등 도입...
+SAM
+- zero shot segmentation -> vision foundation model for general purposes
+- Image encoder, Prompt encoder, Mask decoder로 구성
+- 여러 형태의 prompt 입력 가능
