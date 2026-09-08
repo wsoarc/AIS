@@ -1,0 +1,77 @@
+1. AI Workload & Performance
+Cloud AI vs. On-Device AI : 빠른 응답, 보안 강화, 네트워크 연결 불필요, 비용 절감, 개인화된 서비스
+Memory Capacity : 온디바이스에서는 제한된 메모리 문제 존재 -> 파라미터 bit를 더 작게 줄이자(Quantization), 작은 모델을 사용하자
+Performance : Roofline 다이어그램 (TFLOPs vs. Compute Intensity)
+- LLM Prefill : GEMM 연산, computing 성능이 중요
+- LLM Decode : GEMV 연산, memory 대역폭이 중요
+Parameters, Activation, FLOPs
+- 대부분의 메모리는 모델 Parameter가 차지한다
+- one MAX = two FLOPs
+
+2. On-Device AI
+On-Device AI Enablers : Efficient AI Models, Edge AI Frameworks, Hardware Accelerators
+Small LLMs : Gemma, Llama, Phi, Ministral, Qwen ...
+llama.cpp, ExecuTorch, NPU, Hailo ...
+
+3. Quantization
+데이터를 작은 quantization level로 mapping 하는 것
+FP32 -> BF16, FP16 -> Int8 -> Int4 -> Int2 -> Binary
+Rounding, Outlier cliping 등을 통해 숫자들을 낮은 해상도 상의 숫자들로 mapping
+mapping 과정에서 quantization error 발생하며 이를 최소화해야함
+memory cost, computation requirement 감소
+Microscaling (MX)
+- group 단위로 scale 값을 할당하는 방식
+- MXFP8, MXFP6, MXFP4, MXINT8 ...
+- NVFP4 : MXFP4의 NVIDIA NextGen, FP8 block scale + FP32 Tensor scale
+Uniform(Linear) vs Non-Uniform(Log)
+Asymmetric vs Symmetric
+Learned Quantization : Codebook 기반 mapping
+Vector Quantization : weight를 하나하나 quantization 하지 않고 벡터째로 수행
+Post-Training Quantization (PTQ)
+- 사전에 학습한 wieght는 건드리지 않고 quantization
+- Range Mapping and Clipping 수행
+- QAT보다 오버헤드가 낮지만 정확도가 떨어짐
+Static vs Dynamic
+Rounding : RTN, Adaptive rounding
+Optival Brain Quantization (OBQ)
+Per-Channel Weight Quantization
+Quantization-Aware Training (QAT)
+
+4. Advanced Quantization
+SmmothQuant
+QuaRot / SpinQuant
+GPTQ
+AWQ
+QLoRA : LoRA + Quant
+
+5. Pruning
+모델에는 네트워크 redundancy가 남아있다. 보통 모델은 over-parameterized 된 상태로 학습하기 때문
+Magnitude-based pruning : 작은 weight는 제거하고 모델을 파인튜닝
+Pruning Granularities
+- Fine-grained Pruning : 제거되는 패턴이 불규칙, 정확도 측면에서는 유리, 하드웨어 가속에 불리
+- Pattern-based Pruning
+- Vector-level Pruning : 중간정도
+- Kernel-level Pruning
+- Channel-level Pruning : 제거되는 패턴이 규칙적, 정확도 측면에서는 불리, 하드웨어 가속에 유리
+Parameter Selection
+- Element-wise pruning : 각각의 weight 별로 값이 작은걸 프루닝
+- Vector-wise pruning : weight 행의 합이 작은 행 단위로 프루닝
+- Scaling-based Channel Pruning :
+- Layer-wise Channel Pruning :
+CSR/CSC Format for Sparse Matrices : 프루닝된 weight matrix를 그대로 두지 않고 남아있는 weight만 압축해서 관리
+Vector-wise Sparsity : intervector-wise - 좋은데 하드웨어 서포트 필요 / outtervector-wise
+N:M Sparsity : nvidia 하드웨어 기능 지원 필요
+LMM Pruning : Magnitude Pruning 보다 정확도 높아야됨
+- Taylor Expansion Analysis on Purning Error
+- OBD : Second-Order-based Pruning
+SparseGPT : layer-wise 방식
+Wanda : simple magnitude-based unstructured pruning
+
+6. Knowledge Distillation
+파라미터 크기가 작은 모델들은 학습이 잘 안되는 경향
+student-teacher 구조로 학습 진행
+teacher의 logit값과의 distillation loss를 추가로 계산해 학습에 사용
+Feature-based KD : 중간 layer의 feature를 비교해서 distillation
+Relation-based KD
+Transformer KD
+LLM Distillation
