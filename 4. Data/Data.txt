@@ -1,0 +1,65 @@
+1. Time Series Forecasting: Basics
+여러 상황에서 모두 잘 동작하는 시계열 모델은 어려움
+어떤 데이터에서 어떤 시계열이 잘 동작하는지를 분석하는 것이 경쟁력 있음
+Time Series Analysis
+- 데이터가 정의되는 문제를 풀어가는 과정
+- Time series-level problems vs. Observation-level problems : 문제에 따라 접근법이 달라짐
+Time Series Forecasting
+- Autoregressive generation과 비슷함
+- 문제를 잘 정의하는 것이 중요
+  - Point1 : Forecasting의 목적은 분포를 추정하는 것, 하지만 점 예측보다 모델링이 어려움
+  - Point2 : h개의 future steps를 예측하는 것, autoregressive 방식으로 예측하거나 한번에 여러 값을 예측하는 디코더 구현
+  - Point3 : 시계열의 움직임을 설명하는 외부 변수 존재 여부
+  - Point4 : Univariate vs. Multivariate 중 어떤 시계열 문제인지
+- 시계열 예측에서는 하나의 데이터셋을 train/test로 나눌 때는 반드시 시간 순으로 나눠야 함
+- Sliding Window
+  - 하나의 타임시리즈로부터 여러개의 샘플을 뽑아내는 방법
+  - 입력값 x가 겹치지만 서로 다른 샘플로 동작할 수는 있음
+  - 샘플의 크기가 커지지 않도록 window size를 고정해서 활용
+- Evaluation
+  - 시계열 예측은 기본적으로 regression 문제라서 training과 evaluation이 본질적으로 구분되지 않음
+  - Loss는 MAE, MAPE, RMSE 등을 사용
+  - 세가지 방식의 정확도 측정 : loss, forecast accuracy metric, forecast accuracy measure
+Modeling Choices
+- 어떤 형태의 모델을 만들지를 먼저 고민해야 함
+- Local Univariate Model : 각각 하나의 시계열만을 나눠서 예측하는 모델
+- Global Univariate Model : 하나의 모델로 모든 시계열을 다루는 큰 모델, 데이터셋 전체를 입력으로 사용 가능
+- Multivariate Model : N개의 시계열 변수를 동시에 예측하는 모델
+Linear regression
+- Parameter-free Forecasting Model (rule-based model)
+  - Naive method : 마지막 observation을 출력
+  - Mean method : observation 평균을 출력
+  - Naive Seasolnal mehod : 일정 주기의 observation을 출력, 주기를 알아내는 것도 어려움
+- Linear regression
+  - 출력이 입력값을의 weighted combination으로 가정하고 예측
+  - Feature 디자인과 선택 모두 중요
+- Autoregressive Models
+  - 과거의 시계열 값을 input feature로 사용하는 linear regression 모델
+
+2. Time Series Forecasting: Advanced
+State space models
+- ExponenTial Smoothing Model : 알파값에 따라 최근의 값을 많이 고려하고 과거로 갈수록 적게 고려
+- State Space Model : 예측 모델이 충분히 정확하다면 실제 관측값을 단순한 노이즈로 대체 가능
+  - Linear State Space Models : linear regression과 SSM을 결합
+From linear to deep models
+- feature engineering을 스스로 하게 하는 것을 기대
+- Recurrent Neural Networks (RNN)
+- Long Short-Term Memory (LSTM)
+Convolutional neural networks
+Encoder-decoder structure
+- 모델을 encoder 파트와 decoder 파트로 나눠서 생각
+- 관측과 피쳐를 h로 압축하는게 encoder h로 예측을 생성하는게 decoder
+
+3. Recommender Systems: Basics
+Content-based models
+Collaborative filtering
+Latent factor models : UV decomposition 활용, U V 벡터의 유사도로 추천
+Neural Collaborative Filtering : dop product가 MLP로 대체됨
+
+4. Recommender Systems: Advanced
+Graph-based recommendation
+Representation Learning in Graphs : graph 구조를 나타내는 embedding space를 학습
+Graph neural networks
+- Graph Convolutional Network
+Neural graph collaborative filtering
+
