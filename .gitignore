@@ -1,0 +1,5 @@
+__pycache__/
+*.py[cod]
+.venv/
+.quiz-deps/
+.pytest_cache/

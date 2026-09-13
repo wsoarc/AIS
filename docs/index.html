@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AIS 객관식 퀴즈</title><link rel="stylesheet" href="style.css"><script src="questions.js"></script><script src="app.js" defer></script></head>
+<body><header><b>AIS 객관식 퀴즈</b><span id="progress"></span></header><main>
+<section id="setup"><h1>AI 실기 시험 연습</h1><p>Summary 범위의 실제 실습 코드로 구성한 객관식 문제입니다.</p>
+<div id="fields"></div><label>난이도 <select id="level"><option value="mixed">전체</option><option value="easy">쉬움</option><option value="medium">보통</option><option value="hard">어려움</option></select></label>
+<label>문제 수 <input id="count" type="number" min="1" value="20"></label><button id="start">퀴즈 시작</button><button id="retry" class="sub" hidden>최근 오답 다시 풀기</button></section>
+<section id="quiz" hidden><div class="tags"><span id="field"></span><span id="level-tag"></span></div><h2 id="title"></h2><p id="prompt"></p><pre id="code"></pre><div id="options"></div><div id="feedback"></div><nav><button id="prev" class="sub">이전</button><button id="next">다음</button></nav></section>
+<section id="result" hidden><h1>결과</h1><div id="score"></div><div id="breakdown"></div><button id="again">새 퀴즈</button></section>
+</main></body></html>
