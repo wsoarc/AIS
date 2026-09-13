@@ -1,0 +1,188 @@
+1. data preprocessing
+train_ratio = 0.8
+training_data_len = math.ceil(len(df) * train_ratio)
+train_data = df[:training_data_len][['Open']]
+test_data = df[training_data_len:][['Open']]
+
+for i in range(len(data_seq) - sequence_length):
+    features.append(data_seq[i:i + sequence_length])
+    labels.append(data_seq[i + sequence_length, 0])
+
+2. LSTM 시계열 모델
+self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+self.linear = nn.Linear(hidden_size, 1)
+out, _ = self.lstm(x)
+return self.linear(out)
+
+3. CNN, RNN 시계열 모델
+- Conv1D
+self.conv1d = nn.Conv1d(input_size, hidden_size, kernel_size=2, stride=1)
+self.fc = nn.Linear(hidden_size, 1)
+x = x.transpose(1, 2)   # (B, T, C) -> (B, C, T)
+x = self.conv1d(x)
+x = x.transpose(1, 2)
+return self.fc(x)
+
+- RNN
+self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
+self.fc = nn.Linear(hidden_size, 1)
+out, _ = self.rnn(x)
+return self.fc(out)
+
+4. RNN Encoder-Decoder
+class EncoderRNN(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers):
+        super().__init__()
+        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
+
+    def forward(self, x):
+        _, h = self.rnn(x)
+        return h
+
+class DecoderRNN(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers):
+        super().__init__()
+        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, input_size)
+
+    def forward(self, x, h):
+        out, h = self.rnn(x, h)
+        return self.fc(out), h
+
+class RNNRNN(nn.Module):
+    def forward(self, source, target_len):
+        h = self.encoder(source)
+        decoder_input = source[:, -1, :].unsqueeze(1)
+        predictions = []
+        for _ in range(target_len):
+            out, h = self.decoder(decoder_input, h)
+            predictions.append(out.squeeze(1))
+            decoder_input = out
+        return torch.stack(predictions, dim=1)
+
+5. 시계열 평가 Metric
+from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
+
+rmse = np.sqrt(mean_squared_error(y_test, test_predictions))
+mape = mean_absolute_percentage_error(y_test, test_predictions)
+
+9. 추천 데이터 구성
+lbl_user = preprocessing.LabelEncoder()
+lbl_movie = preprocessing.LabelEncoder()
+df.userId = lbl_user.fit_transform(df.userId.values)
+df.movieId = lbl_movie.fit_transform(df.movieId.values)
+
+df_train, df_test = model_selection.train_test_split(
+    df, test_size=0.1, random_state=42, stratify=df.rating.values
+)
+
+10. Neural Collaborative Filtering
+class Neural_Collaborative_Filtering(nn.Module):
+    def __init__(self, n_users, n_movies):
+        super().__init__()
+        self.user_embedding = nn.Embedding(n_users, 32)
+        self.movie_embedding = nn.Embedding(n_movies, 32)
+        self.fc1 = nn.Linear(64, 32)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(32, 1)
+
+    def forward(self, users, movies, ratings=None):
+        user_embedding = self.user_embedding(users)
+        movie_embedding = self.movie_embedding(movies)
+        x = torch.cat([user_embedding, movie_embedding], dim=1)
+        x = self.relu(self.fc1(x))
+        return self.fc2(x)
+
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+loss_func = nn.MSELoss(reduction='mean')
+
+prediction = model(train_data['users'], train_data['movies'])
+ground_truth = train_data['ratings'].view(batch_size, -1).float()
+loss = loss_func(prediction, ground_truth)
+optimizer.zero_grad()
+loss.backward()
+optimizer.step()
+
+11. 추천 Graph 데이터 구성
+def create_edge_index(df, rating_threshold=1.0):
+    src, dst = [], []
+    for _, row in df.iterrows():
+        if row['rating'] >= rating_threshold:
+            src.append(row['userId'])
+            dst.append(row['movieId'] + num_users)
+    return torch.tensor([src, dst], dtype=torch.long)
+
+edge_index = create_edge_index(rating_df)
+train_indices, test_indices = train_test_split(range(edge_index.size(1)), test_size=0.2)
+val_indices, test_indices = train_test_split(test_indices, test_size=0.5)
+train_edge_index = edge_index[:, train_indices]
+val_edge_index = edge_index[:, val_indices]
+test_edge_index = edge_index[:, test_indices]
+
+12. NGCF Layer와 모델
+class NGCFLayer(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super().__init__()
+        self.W1 = nn.Linear(input_dim, output_dim)
+        self.W2 = nn.Linear(input_dim, output_dim)
+        self.leaky_relu = nn.LeakyReLU(0.2)
+
+    def forward(self, edge_index, node_features, user_num, item_num):
+        src, dst = edge_index
+        deg = torch.zeros(node_features.size(0), device=node_features.device)
+        deg.index_add_(0, src, torch.ones_like(src, dtype=torch.float))
+        deg.index_add_(0, dst, torch.ones_like(dst, dtype=torch.float))
+        norm = 1.0 / torch.sqrt(deg[src] * deg[dst])
+
+        src_feat, dst_feat = node_features[src], node_features[dst]
+        msg_src = (self.W1(dst_feat) + self.W2(dst_feat * src_feat)) * norm.unsqueeze(1)
+        msg_dst = (self.W1(src_feat) + self.W2(src_feat * dst_feat)) * norm.unsqueeze(1)
+
+        aggregated = torch.zeros_like(node_features)
+        aggregated.index_add_(0, src, msg_src)
+        aggregated.index_add_(0, dst, msg_dst)
+        aggregated[:user_num] += self.W1(node_features[:user_num])
+        aggregated[user_num:] += self.W1(node_features[user_num:])
+        return self.leaky_relu(aggregated)
+
+class NGCF(nn.Module):
+    def forward(self, edge_index):
+        node_features = self.node_embeddings.weight
+        layer_outputs = [node_features]
+        for layer in self.layers:
+            node_features = layer(edge_index, node_features, self.num_users, self.num_items)
+            layer_outputs.append(node_features)
+        final_features = torch.cat(layer_outputs, dim=-1)
+        return final_features[:self.num_users], final_features[self.num_users:]
+
+13. BPR Loss와 추천 모델 학습
+def bpr_loss(self, user_emb, pos_item_emb, neg_item_emb, reg_weight=1e-4):
+    pos_scores = torch.sum(user_emb * pos_item_emb, dim=1)
+    neg_scores = torch.sum(user_emb * neg_item_emb, dim=1)
+    loss = -torch.mean(F.logsigmoid(pos_scores - neg_scores))
+    reg_loss = reg_weight * (
+        user_emb.norm(2).pow(2) + pos_item_emb.norm(2).pow(2) + neg_item_emb.norm(2).pow(2)
+    ) / user_emb.size(0)
+    return loss + reg_loss
+
+user_features, item_features = model(train_edge_index)
+u_emb = user_features[user_indices]
+pos_emb = item_features[pos_item_indices]
+neg_emb = item_features[neg_item_indices]
+loss = model.bpr_loss(u_emb, pos_emb, neg_emb)
+optimizer.zero_grad()
+loss.backward()
+optimizer.step()
+
+14. 추천 평가 Metric
+scores = torch.matmul(item_features, user_emb)
+topk_indices = torch.topk(scores, k=k).indices.cpu().tolist()
+
+hits = sum(item_idx in pos_items for item_idx in topk_indices)
+recall_u = hits / len(pos_items)
+precision_u = hits / k
+
+dcg = sum(1.0 / math.log2(rank + 2)
+          for rank, item_idx in enumerate(topk_indices) if item_idx in pos_items)
+idcg = sum(1.0 / math.log2(rank + 2) for rank in range(min(len(pos_items), k)))
+ndcg_u = dcg / idcg if idcg > 0 else 0.0

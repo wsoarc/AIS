@@ -1,0 +1,132 @@
+1. Linear Quantization
+r = S(q - Z) => q = int(round(r/S)) + Z
+
+scaled_tensor = fp_tensor / scale
+rounded_tensor = torch.round(scaled_tensor)
+shifted_tensor = rounded_tensor + zero_point
+qauntized_tensor = shifted_tensor.clamp_(quantized_min, quantized_max)
+
+- scale & zero point
+r_max = S(q_max - Z)
+r_min = S(q_min - Z)
+S = (r_max - r_min) / (q_max - q_min)
+Z = int(round(q_min - r_min/S))
+
+scale = (fp_max - fp_min) / (quantized_max - qunatized_min)
+zero_point = int(round(quantized_min - fp_min / scale))
+
+- weight tensor quantization
+zero point가 대부분 0
+scale = fp_max / quantized_max
+
+- quantized fc/conv layer
+output = output * input_scale * weight_scale / output_scale
+output = output + output_zero_point
+
+2. Non-uniform Quantization
+- K-means quantization
+n_clusters = 2 ** bitwidth
+quantized_tensor = codebook.centroids[codebook.labels]
+
+- Quantization-aware training(QAT)
+for k in range(n_clusters):
+    codebook.centroids[k] = torch.mean(fp32_tensor[codebook.labels==k])
+
+3. Weight-only Quantization
+- Activation aware weight only quantization (AWQ)
+outlier_mask = torch.topk(importance, int(len(importance) * 0.01))[1]
+m.weight.data[:, outlier_mask] *= scale_factor
+m.weight.data[:, outlier_mask] /= scale_factor
+
+scales = s_x ** ratio
+fc.weight.data *= scales
+fc.weight.data /= scales
+
+4. Weight and Activation Qunatiaztion
+ln.weight /= scale
+ln.bias /= scale
+fc.weight *= scale
+scales = act_scale.pow(alpha) / weight_scale.pow(1-alpha)
+
+5. Rotation Based Quantization
+m.weight.data = W_ @ R1
+m.weight.data = R1.T @ W_
+m.weight.data = W_ @ R1
+
+6. Knowledge Distillation
+with torch.no_grad():
+    teacher_logits = teacher(inputs)
+student_logits = student(inputs)
+soft_targets = nn.functional.softmax(teacher_logits / T, dim=-1)
+student_prob = nn.functional.softmax(student_logits / T, dim=-1)
+soft_targets_loss = torch.sum(soft_targets * (soft_targets.log() - student_prob.log()), dim=1).mean() * (T**2)
+label_loss = ce_loss(student_logits, labels)
+loss = soft_targets_loss_weight * soft_targets_loss + ce_loss_weight * label_loss
+
+- cosine similarity based KD
+with torch.no_grad():
+    _, teacher_hidden_representation = teacher(inputs)
+student_logits, student_hidden_representation = student(inputs)
+hidden_rep_loss = cosine_loss(student_hidden_representation, teacher_hidden_representation, target=torch.ones(inputs.size(0)).cuda())
+label_loss = ce_loss(student_logits, labels)
+loss = hidden_rep_loss_weight * hidden_rep_loss + ce_loss_weight * label_loss
+
+- hint-based KD
+with torch.no_grad():
+    _, teacher_feature_map = teacher(inputs)
+student_logits, student_feature_map = student(inputs)
+hidden_rep_loss = mse_loss(student_feature_map, teacher_feature_map)
+label_loss = ce_loss(student_logits, labels)
+loss = feature_map_weight * hidden_rep_loss + ce_loss_weight * label_loss
+
+
+7. KV cache pruning
+- cache memory
+total_bytes = 2 * batch_size * n_layers * n_kv_heads * seq_len * head_dim * dtype_bytes
+
+- StreamingLLM
+scores = torch.arange(K, device=DEVICE).float().repeat(B, H, 1)
+scores[:, :, :n_sink] = float("inf")
+
+- H2O
+recent_size = budget // 2
+scores = attn_kv.sum(dim=-2)
+scores[..., -recent_size:] = float("inf")
+
+count = torch.arange(K, 0, -1, device=attn_kv.device, dtype=scores.dtype)
+return scores / count.view(1, 1, K)
+
+- SnapKV
+scores = attn_kv[:, :, -w, :].sum(dim=2)
+half = kernel // 2
+pooled_scores = scores.clone()
+for j in range(K):
+    start = max(0, j - half)
+    end = min(K, j + half + 1)
+    pooled_scores[:, :, j] = scores[:, :, start:end].max(dim=-1).values
+scores = pooled_scores
+scores[:, :, -w:] = float("inf")
+
+8. Speculative Decoding
+for _ in range(gamma):
+    x, cache = greedy_step(model, x, cache)
+    tokens.append(x)
+
+verify_ids = torch.cat([x, drafted], dim=-1)
+result = target(verify_ids, past_key_values=cache, use_cache=True)
+preds = result.logits[0].argmax(-1)
+
+n = 0
+for i in range(gamma):
+    if drafted[0, i] == preds[i]:
+        n += 1
+    else:
+        break;
+
+- EAGLE 계열 패스...
+
+- DFlash
+draft_hidden = draft_hidden[:, -num_draft:, :]
+draft_logits = model.compute_logits(draft_hidden, ouput_head)
+draft_tokens = torch.argmax(draft_logits, dim=-1)
+

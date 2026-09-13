@@ -1,0 +1,135 @@
+LLM
+
+1. tiktoken tokenizer
+import tiktoken
+tokenizer = tiktoken.get_encoding('gpt2')
+text = "~"
+intergers = tokenizer.encoding(text, allowed_special={"<|endoftext|>"})
+strings = tokenizer.decoding(intergers)
+
+2. input, target chunk slide
+x = enc[:context_size]
+y = enc[1:context_size+1]
+
+input_chunk = token_ids[i : i+max_length]
+target_chunk = token_ids[i+1 : i+max_lenth+1]
+
+3. torch.nn.Embedding
+embedding_layer = torch.nn.Embedding(vocab_size, output_dim)
+token_embeddings = embedding_layer(input_ids)
+
+4. Causal Attention
+self.W_query = nn.Linear(d_in, d_out, bias=qkv_bias)
+self.W_key = nn.Linear(d_in, d_out, bias=qkv_bias)
+self.W_value = nn.Linear(d_in, d_out, bias=qkv_bias)
+
+self.register_buffer('mask', torch.triu(torch.ones(context_length, context_length), diagonal=1))
+
+queries = self.W_query(x)
+keys = self.W_key(x)
+values = self.W_value(x)
+
+attn_scores = queries @ keys.transpose(1, 2)
+attn_scores.masked_fill_(self.mask.bool()[:num_tokens, :num_tokens], -torch.inf)
+attn_weights = torch.softmax(attn_scores / keys.shape[-1]**0.5, dim=-1)
+attn_weights = self.dropout(attn_weights)
+context_vec = attn_weights @ values
+
+5. Multihead Attention
+queries = query.view(b, num_tokens, self.num_heads, self.head_dim)
+keys = keys.view(b, num_tokens, self.num_heads, self.head_dim)
+values = values(view(b, num_tokens, self.num_heads, self.head_dim))
+
+queries = queries.transpose(1, 2)
+keys = keys.transpose(1, 2)
+values = values.transpose(1, 2)
+
+attn_scores = queries @ keys.transpose(2, 3)
+mask_bool = self.mask.bool()[:num_tokens, :num_tokens]
+attn_scores.masked_fill_(mask_bool, -torch.inf)
+attn_weights = torch.softmax(attn_scores / key.shape[-1] ** 0.5, dim=-1)
+attn_weights = self.dropout(attn_weights)
+
+context_vec = (attn_weights @ values).transpose(1, 2)
+context_vec = context_vec.contiguous().view(b, num_tokens, self.d_out)
+context_vec = self.out_proj(context_vec)
+
+6. GPT layers
+- LayerNorm
+self.scale = nn.Parameter(torch.ones(emb_dim))
+self.shift = nn.Paramerter(torch.zeros(emb_dim))
+norm_x = (x - mean) / torch.sqrt(var + self.eps)
+return norm_x * scale + self.shift
+
+- TransformerBlock
+shortcut = x
+x = self.norm1(x)
+x = self.att(x)
+x = self.drop_shortcut(x)
+x = x + shortcut
+shortcut = x
+x = self.norm2(x)
+x = self.ff(x)
+x = self_drop_shortcut(x)
+x = x + shortcut
+return x
+
+- entire GPT model
+self.tok_emb = nn.Embedding(vocab_size, emb_dim)
+self.pos_emb = nn.Embedding(context_length, emb_dim)
+self.drop_emb = nn.Dropout(drop_rate)
+self.trf_blocks = nn.Sequential(*[TransformerBlock(cfg) for _ in range(n_layers)])
+self.final_norm = LayerNorm(emb_dim)
+self.out_head = nn.Linear(emb_dim, vocab_size, bias=False)
+
+tok_embeds = self.tok_emb(in_idx)
+pos_embeds = self.pos_emb(torch.arange(seq_len, device=in_idx.device))
+x = tok_embeds + pos_embeds
+x = self.drop_emb(x)
+x = self.trf_blocks(x)
+x = self.final_norm(x)
+logits = self.out_head(x)
+return logits
+
+- text generation
+with torch.no_grad():
+    logits = model(idx_cond)
+logits = logits[:, -1, :]
+idx_next = torch.argmax(logits, dim=-1, keepdim=True)
+idx = torch.cat((idx, idx_next), dim=1);
+
+encoded_tensor = torch.tensor(tokenizer.encode(text)).unsqueeze(0)
+out = generate_text()
+decoded_text = tokenizer.decode(out.squeeze(0).tolist())
+
+7. train
+loss = torch.nn.functional.cross_entropy(logits.flatten(0, 1), target_batch.flatten())
+
+model.train()
+optimizer.zero_grad()
+loss = calc_loss_batch(input_batch, target_batch, model, device)
+loss.backward()
+optimizer.step()
+
+optimizer = torch.optim.AdamW(model.parameter(), lr=1e-5, weight_decay=0.1)
+
+8. LoRA
+- LoRALayer
+self.A = nn.Parameter(torch.empty(in_dim, rank))
+nn.init.kaiming_uniform_(self.A, a=math.sqrt(5))
+self.B = nn.Parameter(torch.zeros(rank, out_dim))
+self.alpha = alpha
+self.rank = rank
+
+x = (self.alpha / self.rank) * (x @ self.A @ self.B)
+
+- LinearWithLoRA
+self.linear = linear
+self.lora = LoRALayer(linear.in_features, linear.out_features, rank, alpha)
+
+return self.linear(x) + self.lora(x)
+
+for param in model.parameters():
+    param.requires_grad = False
+
+9. instruction following은 패스..

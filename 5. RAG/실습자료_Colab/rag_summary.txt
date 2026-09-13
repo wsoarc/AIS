@@ -1,0 +1,219 @@
+RAG
+
+1. 문서 Load와 Vector Index 생성
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Document
+
+documents = SimpleDirectoryReader("data").load_data()
+index = VectorStoreIndex.from_documents(documents)
+
+2. Chunking
+from llama_index.core.node_parser import SentenceSplitter
+
+parser = SentenceSplitter(chunk_size=1024, chunk_overlap=200)
+nodes = parser.get_nodes_from_documents(documents)
+
+text_splitter = SentenceSplitter(chunk_size=200, chunk_overlap=50)
+index = VectorStoreIndex.from_documents(
+    documents=documents,
+    transformations=[text_splitter]
+)
+
+3. Retriever와 Response Synthesizer
+retriever = index.as_retriever(similarity_top_k=5)
+synthesizer = get_response_synthesizer(response_mode="compact")
+
+class StandardQueryEngine(CustomQueryEngine):
+    retriever: BaseRetriever
+    response_synthesizer: BaseSynthesizer
+
+    def custom_query(self, query_str: str):
+        nodes = self.retriever.retrieve(query_str)
+        return self.response_synthesizer.synthesize(query_str, nodes)
+
+query_engine = StandardQueryEngine(
+    retriever=retriever,
+    response_synthesizer=synthesizer
+)
+response = query_engine.query(query)
+
+4. RAG의 기본 흐름: Retrieve -> Context 구성 -> Generate
+class RAG_from_scratch:
+    def retrieve(self, query: str):
+        return query_engine.query(query)
+
+    def generate_response(self, query: str, context_str):
+        return oai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            temperature=0,
+            messages=[{
+                "role": "user",
+                "content": f"Context:\n{context_str}\nQuestion: {query}"
+            }]
+        ).choices[0].message.content
+
+    def query(self, query: str):
+        context_str = self.retrieve(query)
+        return self.generate_response(query, context_str)
+
+5. Embedding과 Cosine Similarity 기반 Retrieval
+response = client.embeddings.create(
+    model="text-embedding-3-small",
+    input=texts
+)
+embeddings = np.array([item.embedding for item in response.data])
+
+all_embeddings = embed_text(all_chunks)
+query_embedding = embed_text(query)[0]
+cosine_scores = np.dot(all_embeddings, query_embedding) / (
+    np.linalg.norm(all_embeddings, axis=1) * np.linalg.norm(query_embedding)
+)
+top_k_indices = (-cosine_scores).argsort()[:topk]
+top_k_chunks = np.array(all_chunks)[top_k_indices]
+
+6. HTML Parsing과 Chunk 구성
+from bs4 import BeautifulSoup
+from blingfire import text_to_sentences_and_offsets
+
+def parse_htmls(search_results):
+    documents = []
+    for result in search_results:
+        soup = BeautifulSoup(result["page_result"], features="lxml")
+        documents.append(soup.get_text(" ", strip=True))
+    return documents
+
+7. LlamaIndex Retriever
+from llama_index.core import VectorStoreIndex, Settings
+from llama_index.core.schema import Document
+from llama_index.embeddings.openai import OpenAIEmbedding
+
+Settings.embed_model = OpenAIEmbedding(model="text-embedding-3-small")
+
+class LlamaIndexRetriever:
+    def __init__(self):
+        self.parser = SentenceSplitter(chunk_size=512, chunk_overlap=0)
+
+    def retrieve(self, query, search_results, topk):
+        documents = [Document(text=text) for text in parse_htmls(search_results)]
+        index = VectorStoreIndex.from_documents(
+            documents=documents,
+            transformations=[self.parser]
+        )
+        retriever = index.as_retriever(similarity_top_k=topk)
+        nodes = retriever.retrieve(query)
+        return [node.node.get_content().strip() for node in nodes]
+
+8. Reader: 검색 문맥을 Prompt로 구성하고 답변 생성
+class Reader:
+    def prompt_generator(self, query, top_k_chunks):
+        references = "# References\n"
+        for chunk in top_k_chunks:
+            references += f"- {chunk.strip()}\n"
+        references = references[:MAX_CONTEXT_REFERENCES_LENGTH]
+
+        return [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content":
+             f"{references}\n------\n"
+             f"Using only the references listed above, answer the question.\n"
+             f"Question: {query}"}
+        ]
+
+    def generate_response(self, query, top_k_chunks):
+        return oai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            temperature=0,
+            messages=self.prompt_generator(query, top_k_chunks)
+        ).choices[0].message.content
+
+9. Retriever와 Reader를 결합한 RAG
+class RAG:
+    def __init__(self):
+        self.retriever = LlamaIndexRetriever()
+        self.reader = Reader()
+
+    def inference(self, query, search_results, topk):
+        retrieved_results = self.retriever.retrieve(query, search_results, topk)
+        answer = self.reader.generate_response(query, retrieved_results)
+        return answer, retrieved_results
+
+10. Knowledge Graph를 결합한 RAG
+class RAGWithKG:
+    def __init__(self):
+        self.kg_query_engine = KGQueryEngine()
+        self.reader = Reader()
+
+    def inference(self, query):
+        kg_results, is_finance = self.kg_query_engine.query(query)
+        answer = self.reader.generate_response(query, [kg_results])
+        return answer, kg_results
+
+class RAGWithSRKG:
+    def inference(self, query, search_results, topk):
+        retrieved_results = self.retriever.retrieve(query, search_results, topk)
+        kg_results, is_finance = self.kg_query_engine.query(query)
+        combined_results = [kg_results] if is_finance else retrieved_results
+        answer = self.reader.generate_response(query, combined_results)
+        return answer, combined_results
+
+11. MCP Client와 Tool 목록
+from llama_index.tools.mcp import BasicMCPClient, McpToolSpec
+from llama_index.core.agent.workflow import FunctionAgent, ToolCallResult, ToolCall
+from llama_index.core.workflow import Context
+
+mcp_client = BasicMCPClient(external_mcp_server)
+mcp_tool = McpToolSpec(client=mcp_client)
+tools = await mcp_tool.to_tool_list_async()
+resources = await mcp_tool.fetch_resources()
+
+12. MCP Tool을 사용하는 Agent
+class KGQueryEngineWithMCP:
+    def __init__(self, mcp_tool_spec, model, llm=None):
+        self.llm = llm or OpenAI(model=model, temperature=0)
+        self.mcp_tool_spec = mcp_tool_spec
+        self.agent = None
+        self.agent_context = None
+
+    async def init_agent(self):
+        tools = await self.mcp_tool_spec.to_tool_list_async()
+        self.agent = FunctionAgent(
+            name="Agent",
+            description="An agent that can work with Our Knowledge Graph api.",
+            tools=tools,
+            llm=self.llm,
+            system_prompt=SYSTEM_PROMPT
+        )
+        self.agent_context = Context(self.agent)
+
+    async def query(self, question):
+        handler = self.agent.run(question, ctx=self.agent_context)
+        response = await handler
+        return str(response)
+
+13. MCP 기반 RAG
+class RAGwithMCP:
+    def __init__(self, mcp_tool):
+        self.mcp_application = KGQueryEngineWithMCP(mcp_tool, model="gpt-4o-mini")
+        self.reader = Reader()
+
+    async def retrieve(self, query, query_time, search_results, topk):
+        await self.mcp_application.init_agent()
+        full_query = f"Query: {query}\nQuery time: {query_time}"
+        return await self.mcp_application.query(full_query)
+
+    async def inference(self, query, search_results, query_time, topk):
+        retrieved_results = await self.retrieve(query, query_time, search_results, topk)
+        references = retrieved_results if isinstance(retrieved_results, list) else [retrieved_results]
+        answer = self.reader.generate_response(query, query_time, references)
+        return {"retrieved_results": retrieved_results, "answer": answer}
+
+14. RAG 평가: exact, acceptable, missing, hallucination
+if prediction == ground_truth:
+    grade = "perfect"
+elif "i don't know" in prediction:
+    grade = "missing"
+elif CRAG_evaluation(question, ground_truth, prediction) == 1:
+    grade = "acceptable"
+else:
+    grade = "incorrect"
+
+crag_score = perfect + 0.5 * acceptable - incorrect
